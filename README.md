@@ -28,6 +28,10 @@ See `LICENSE` for the complete upstream license text.
 
 ## ESPHome Usage
 
+Complete test configuration:
+
+- [`examples/midea-uart-ir.yaml`](examples/midea-uart-ir.yaml)
+
 ```yaml
 external_components:
   - source: github://x3muha/esphome-midea-x3@main
