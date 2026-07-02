@@ -43,7 +43,7 @@ void AirConditioner::on_rx_frame(const std::vector<uint8_t> &frame) {
   bool fresh = (frame[19] & 0x20) != 0;
   bool sensor_unknown =
       this->fresh_state_binary_sensor_ != nullptr && !this->fresh_state_binary_sensor_->has_state();
-  bool needs_publish = this->fresh_state_ != fresh || sensor_unknown;
+  bool needs_publish = !this->fresh_state_valid_ || this->fresh_state_ != fresh || sensor_unknown;
   if (needs_publish)
     this->set_fresh_state_(fresh, "uart_status");
 }
@@ -225,12 +225,12 @@ void AirConditioner::do_display_toggle() {
 
 void AirConditioner::do_fresh_on() {
   this->transmit_fresh_(true);
-  this->set_fresh_state_(true, "api_fresh");
+  this->set_last_control_source_("api_fresh");
 }
 
 void AirConditioner::do_fresh_off() {
   this->transmit_fresh_(false);
-  this->set_fresh_state_(false, "api_fresh");
+  this->set_last_control_source_("api_fresh");
 }
 
 void AirConditioner::do_clean_on() {
@@ -261,6 +261,7 @@ void AirConditioner::do_clean_reset() {
 }
 
 void AirConditioner::set_fresh_state_(bool state, const char *source) {
+  this->fresh_state_valid_ = true;
   this->fresh_state_ = state;
   set_binary_sensor(this->fresh_state_binary_sensor_, state);
   this->set_last_control_source_(source);
@@ -309,7 +310,6 @@ void AirConditioner::restore_clean_state_() {
   call.perform();
   if (this->clean_restore_fresh_)
     this->transmit_fresh_(true);
-  this->set_fresh_state_(this->clean_restore_fresh_, "clean_restore");
   this->set_last_control_source_("clean_restore");
   this->clean_restore_valid_ = false;
 }

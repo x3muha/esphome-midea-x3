@@ -57,7 +57,7 @@ uart:
   baud_rate: 9600
 
 # GPIO14 is connected to the indoor unit TSOP OUT signal line, not to a separate IR receiver.
-# Keep raw enabled so injected and remote-control pulses can be compared in logs.
+# Enable `dump: raw` only for diagnostics. It logs injected Clean/Fresh pulses too and can block the loop.
 remote_receiver:
   id: ir_rx
   pin:
@@ -66,7 +66,6 @@ remote_receiver:
     mode:
       input: true
       pullup: false
-  dump: raw
   tolerance: 50%
   idle: 25ms
   filter: 20us
@@ -120,10 +119,20 @@ climate:
       id: midea_fresh_state
       name: "Midea Fresh Status"
       internal: true
+      on_state:
+        then:
+          - switch.template.publish:
+              id: midea_fresh_switch
+              state: !lambda "return x;"
     clean_running:
       id: midea_clean_running
       name: "Midea Clean Running"
       internal: true
+      on_state:
+        then:
+          - switch.template.publish:
+              id: midea_clean_switch
+              state: !lambda "return x;"
     clean_state:
       id: midea_clean_state
       name: "Midea Clean State"
@@ -181,11 +190,6 @@ switch:
     name: "Midea Fresh"
     id: midea_fresh_switch
     icon: mdi:air-filter
-    lambda: |-
-      if (id(midea_fresh_state).has_state()) {
-        return id(midea_fresh_state).state;
-      }
-      return {};
     turn_on_action:
       - midea_ac.fresh_on:
           id: midea_ac
@@ -197,11 +201,6 @@ switch:
     name: "Midea Clean"
     id: midea_clean_switch
     icon: mdi:spray-bottle
-    lambda: |-
-      if (id(midea_clean_running).has_state()) {
-        return id(midea_clean_running).state;
-      }
-      return {};
     turn_on_action:
       - midea_ac.clean_on:
           id: midea_ac

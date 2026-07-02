@@ -81,6 +81,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   TextSensor *last_control_source_text_sensor_{nullptr};
   Sensor *clean_remaining_sensor_{nullptr};
   bool fresh_state_{false};
+  bool fresh_state_valid_{false};
   bool clean_running_{false};
   bool clean_restore_{false};
   uint32_t clean_duration_ms_{7200000};
