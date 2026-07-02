@@ -185,7 +185,7 @@ switch:
       if (id(midea_fresh_state).has_state()) {
         return id(midea_fresh_state).state;
       }
-      return false;
+      return {};
     turn_on_action:
       - midea_ac.fresh_on:
           id: midea_ac
@@ -201,7 +201,7 @@ switch:
       if (id(midea_clean_running).has_state()) {
         return id(midea_clean_running).state;
       }
-      return false;
+      return {};
     turn_on_action:
       - midea_ac.clean_on:
           id: midea_ac

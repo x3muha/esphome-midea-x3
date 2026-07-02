@@ -110,7 +110,10 @@ on.
 
 Fresh state is synchronized from UART `C0` status frames. On the tested X3 unit,
 the Fresh bit is `frame[19] & 0x20`, corresponding to status payload byte 9 when
-counting from `C0`.
+counting from `C0`. In captured frames this appears as `... 20 20 00 ...` for
+Fresh on and `... 20 00 00 ...` for Fresh off. Template switches should return
+an unknown state until `fresh_state` has received its first UART update instead
+of defaulting to `false`.
 
 For Web UI, ESPHome API, KNX, or EDOMI control, keep Fresh and Clean as template
 switches in YAML and optionally expose runtime controls for the estimated Clean
