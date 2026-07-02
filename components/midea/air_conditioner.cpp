@@ -14,11 +14,26 @@ static void set_sensor(Sensor *sensor, float value) {
     sensor->publish_state(value);
 }
 
+static void set_binary_sensor(BinarySensor *sensor, bool value) {
+  if (sensor != nullptr && (!sensor->has_state() || sensor->state != value))
+    sensor->publish_state(value);
+}
+
+static void set_text_sensor(TextSensor *sensor, const char *value) {
+  if (sensor != nullptr && (!sensor->has_state() || sensor->state != value))
+    sensor->publish_state(value);
+}
+
 template<typename T> void update_property(T &property, const T &value, bool &flag) {
   if (property != value) {
     property = value;
     flag = true;
   }
+}
+
+void AirConditioner::loop() {
+  ApplianceBase<dudanov::midea::ac::AirConditioner>::loop();
+  this->handle_clean_timer_();
 }
 
 void AirConditioner::on_status_change() {
@@ -70,6 +85,7 @@ void AirConditioner::on_status_change() {
   set_sensor(this->outdoor_sensor_, this->base_.getOutdoorTemp());
   set_sensor(this->power_sensor_, this->base_.getPowerUsage());
   set_sensor(this->humidity_sensor_, this->base_.getIndoorHum());
+  this->publish_clean_remaining_();
 }
 
 void AirConditioner::control(const ClimateCall &call) {
@@ -193,6 +209,141 @@ void AirConditioner::do_display_toggle() {
     ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
 #endif
   }
+}
+
+void AirConditioner::do_fresh_on() {
+  this->transmit_fresh_(true);
+  this->set_fresh_state_(true, "api_fresh");
+}
+
+void AirConditioner::do_fresh_off() {
+  this->transmit_fresh_(false);
+  this->set_fresh_state_(false, "api_fresh");
+}
+
+void AirConditioner::do_clean_on() {
+  this->save_clean_restore_state_();
+  this->transmit_clean_(true);
+  this->clean_started_ms_ = millis();
+  this->set_clean_running_(true);
+  this->set_clean_state_("running");
+  this->set_last_control_source_("api_clean");
+  this->publish_clean_remaining_();
+}
+
+void AirConditioner::do_clean_off() {
+  this->transmit_clean_(false);
+  this->set_clean_running_(false);
+  this->set_clean_state_("idle");
+  this->set_last_control_source_("api_clean");
+  if (this->clean_restore_)
+    this->restore_clean_state_();
+}
+
+void AirConditioner::do_clean_reset() {
+  this->set_clean_running_(false);
+  this->clean_restore_valid_ = false;
+  this->set_clean_state_("idle");
+  this->set_last_control_source_("api_clean_reset");
+  this->publish_clean_remaining_();
+}
+
+void AirConditioner::set_fresh_state_(bool state, const char *source) {
+  this->fresh_state_ = state;
+  set_binary_sensor(this->fresh_state_binary_sensor_, state);
+  this->set_last_control_source_(source);
+}
+
+void AirConditioner::set_clean_state_(const char *state) { set_text_sensor(this->clean_state_text_sensor_, state); }
+
+void AirConditioner::set_last_control_source_(const char *source) {
+  set_text_sensor(this->last_control_source_text_sensor_, source);
+}
+
+void AirConditioner::set_clean_running_(bool running) {
+  this->clean_running_ = running;
+  set_binary_sensor(this->clean_running_binary_sensor_, running);
+}
+
+void AirConditioner::publish_clean_remaining_() {
+  if (this->clean_remaining_sensor_ == nullptr)
+    return;
+  if (!this->clean_running_) {
+    set_sensor(this->clean_remaining_sensor_, 0);
+    return;
+  }
+  uint32_t elapsed = millis() - this->clean_started_ms_;
+  uint32_t remaining = elapsed >= this->clean_duration_ms_ ? 0 : this->clean_duration_ms_ - elapsed;
+  set_sensor(this->clean_remaining_sensor_, (remaining + 59999) / 60000);
+}
+
+void AirConditioner::save_clean_restore_state_() {
+  this->clean_restore_valid_ = true;
+  this->clean_restore_fresh_ = this->fresh_state_;
+  this->clean_restore_mode_ = this->mode;
+  this->clean_restore_target_temperature_ = this->target_temperature;
+  this->clean_restore_fan_mode_ = this->fan_mode;
+}
+
+void AirConditioner::restore_clean_state_() {
+  if (!this->clean_restore_valid_)
+    return;
+  auto call = this->make_call();
+  call.set_mode(this->clean_restore_mode_);
+  if (std::isfinite(this->clean_restore_target_temperature_))
+    call.set_target_temperature(this->clean_restore_target_temperature_);
+  if (this->clean_restore_fan_mode_.has_value())
+    call.set_fan_mode(this->clean_restore_fan_mode_);
+  call.perform();
+  if (this->clean_restore_fresh_)
+    this->transmit_fresh_(true);
+  this->set_fresh_state_(this->clean_restore_fresh_, "clean_restore");
+  this->set_last_control_source_("clean_restore");
+  this->clean_restore_valid_ = false;
+}
+
+void AirConditioner::handle_clean_timer_() {
+  if (!this->clean_running_)
+    return;
+  this->publish_clean_remaining_();
+  if (millis() - this->clean_started_ms_ < this->clean_duration_ms_)
+    return;
+  this->set_clean_running_(false);
+  if (this->clean_restore_) {
+    this->set_clean_state_("restoring");
+    this->restore_clean_state_();
+    this->set_clean_state_("restored");
+  } else {
+    this->set_clean_state_("probably_finished");
+  }
+}
+
+void AirConditioner::transmit_fresh_(bool state) {
+#ifdef USE_REMOTE_TRANSMITTER
+  if (state) {
+    IrData data({0xB9, 0x46, 0xF5, 0x0A, 0x41, 0xBE});
+    this->transmitter_.transmit_demodulated(data);
+  } else {
+    IrData data({0xB9, 0x46, 0xF5, 0x0A, 0x42, 0xBD});
+    this->transmitter_.transmit_demodulated(data);
+  }
+#else
+  ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
+#endif
+}
+
+void AirConditioner::transmit_clean_(bool state) {
+#ifdef USE_REMOTE_TRANSMITTER
+  if (state) {
+    IrData data({0xB9, 0x46, 0xF5, 0x0A, 0x4F, 0xB0});
+    this->transmitter_.transmit_demodulated(data);
+  } else {
+    IrData data({0xB9, 0x46, 0xF5, 0x0A, 0x50, 0xAF});
+    this->transmitter_.transmit_demodulated(data);
+  }
+#else
+  ESP_LOGW(Constants::TAG, "Action needs remote_transmitter component");
+#endif
 }
 
 }  // namespace esphome::midea::ac

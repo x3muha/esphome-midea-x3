@@ -6,7 +6,9 @@
 #include <Appliance/AirConditioner/AirConditioner.h>
 
 #include "appliance_base.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 
 namespace esphome::midea::ac {
 
@@ -20,13 +22,23 @@ using climate::ClimateFanMode;
 using climate::ClimateModeMask;
 using climate::ClimateSwingModeMask;
 using climate::ClimatePresetMask;
+using binary_sensor::BinarySensor;
+using text_sensor::TextSensor;
 
 class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>, public climate::Climate {
  public:
   void dump_config() override;
+  void loop() override;
   void set_outdoor_temperature_sensor(Sensor *sensor) { this->outdoor_sensor_ = sensor; }
   void set_humidity_setpoint_sensor(Sensor *sensor) { this->humidity_sensor_ = sensor; }
   void set_power_sensor(Sensor *sensor) { this->power_sensor_ = sensor; }
+  void set_fresh_state_binary_sensor(BinarySensor *sensor) { this->fresh_state_binary_sensor_ = sensor; }
+  void set_clean_running_binary_sensor(BinarySensor *sensor) { this->clean_running_binary_sensor_ = sensor; }
+  void set_clean_state_text_sensor(TextSensor *sensor) { this->clean_state_text_sensor_ = sensor; }
+  void set_last_control_source_text_sensor(TextSensor *sensor) { this->last_control_source_text_sensor_ = sensor; }
+  void set_clean_remaining_sensor(Sensor *sensor) { this->clean_remaining_sensor_ = sensor; }
+  void set_clean_restore(bool restore) { this->clean_restore_ = restore; }
+  void set_clean_duration(uint32_t ms) { this->clean_duration_ms_ = ms; }
   void on_status_change() override;
 
   /* ############### */
@@ -41,6 +53,11 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void do_power_on() { this->base_.setPowerState(true); }
   void do_power_off() { this->base_.setPowerState(false); }
   void do_power_toggle() { this->base_.setPowerState(this->mode == ClimateMode::CLIMATE_MODE_OFF); }
+  void do_fresh_on();
+  void do_fresh_off();
+  void do_clean_on();
+  void do_clean_off();
+  void do_clean_reset();
   void set_supported_modes(ClimateModeMask modes) { this->supported_modes_ = modes; }
   void set_supported_swing_modes(ClimateSwingModeMask modes) { this->supported_swing_modes_ = modes; }
   void set_supported_presets(ClimatePresetMask presets) { this->supported_presets_ = presets; }
@@ -57,6 +74,32 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   Sensor *outdoor_sensor_{nullptr};
   Sensor *humidity_sensor_{nullptr};
   Sensor *power_sensor_{nullptr};
+  BinarySensor *fresh_state_binary_sensor_{nullptr};
+  BinarySensor *clean_running_binary_sensor_{nullptr};
+  TextSensor *clean_state_text_sensor_{nullptr};
+  TextSensor *last_control_source_text_sensor_{nullptr};
+  Sensor *clean_remaining_sensor_{nullptr};
+  bool fresh_state_{false};
+  bool clean_running_{false};
+  bool clean_restore_{false};
+  uint32_t clean_duration_ms_{7200000};
+  uint32_t clean_started_ms_{0};
+  bool clean_restore_valid_{false};
+  bool clean_restore_fresh_{false};
+  ClimateMode clean_restore_mode_{ClimateMode::CLIMATE_MODE_OFF};
+  float clean_restore_target_temperature_{NAN};
+  optional<ClimateFanMode> clean_restore_fan_mode_{};
+
+  void set_fresh_state_(bool state, const char *source);
+  void set_clean_state_(const char *state);
+  void set_last_control_source_(const char *source);
+  void set_clean_running_(bool running);
+  void publish_clean_remaining_();
+  void save_clean_restore_state_();
+  void restore_clean_state_();
+  void handle_clean_timer_();
+  void transmit_fresh_(bool state);
+  void transmit_clean_(bool state);
 };
 
 }  // namespace esphome::midea::ac

@@ -1,6 +1,6 @@
 from esphome import automation
 import esphome.codegen as cg
-from esphome.components import climate, remote_transmitter, sensor, uart
+from esphome.components import binary_sensor, climate, remote_transmitter, sensor, text_sensor, uart
 from esphome.components.climate import ClimateMode, ClimatePreset, ClimateSwingMode
 from esphome.components.remote_base import CONF_TRANSMITTER_ID
 import esphome.config_validation as cv
@@ -34,9 +34,16 @@ from esphome.core import CORE, coroutine
 
 CODEOWNERS = ["@dudanov"]
 DEPENDENCIES = ["climate", "uart"]
-AUTO_LOAD = ["sensor"]
+AUTO_LOAD = ["binary_sensor", "sensor", "text_sensor"]
 CONF_POWER_USAGE = "power_usage"
 CONF_HUMIDITY_SETPOINT = "humidity_setpoint"
+CONF_CLEAN_DURATION = "clean_duration"
+CONF_CLEAN_REMAINING = "clean_remaining"
+CONF_CLEAN_RESTORE = "clean_restore"
+CONF_CLEAN_RUNNING = "clean_running"
+CONF_CLEAN_STATE = "clean_state"
+CONF_FRESH_STATE = "fresh_state"
+CONF_LAST_CONTROL_SOURCE = "last_control_source"
 midea_ac_ns = cg.esphome_ns.namespace("midea").namespace("ac")
 AirConditioner = midea_ac_ns.class_("AirConditioner", climate.Climate, cg.Component)
 Capabilities = midea_ac_ns.namespace("Constants")
@@ -117,6 +124,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_BEEPER, default=False): cv.boolean,
             cv.Optional(CONF_AUTOCONF, default=True): cv.boolean,
+            cv.Optional(CONF_CLEAN_RESTORE, default=False): cv.boolean,
+            cv.Optional(CONF_CLEAN_DURATION, default="120min"): cv.time_period,
             cv.Optional(CONF_SUPPORTED_MODES): cv.ensure_list(validate_modes),
             cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
                 validate_swing_modes
@@ -147,6 +156,24 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_FRESH_STATE): binary_sensor.binary_sensor_schema(
+                icon="mdi:air-filter",
+            ),
+            cv.Optional(CONF_CLEAN_RUNNING): binary_sensor.binary_sensor_schema(
+                icon="mdi:spray-bottle",
+            ),
+            cv.Optional(CONF_CLEAN_STATE): text_sensor.text_sensor_schema(
+                icon="mdi:spray-bottle",
+            ),
+            cv.Optional(CONF_CLEAN_REMAINING): sensor.sensor_schema(
+                unit_of_measurement="min",
+                icon="mdi:timer-outline",
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_LAST_CONTROL_SOURCE): text_sensor.text_sensor_schema(
+                icon="mdi:source-branch",
+            ),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -163,6 +190,11 @@ BeeperOffAction = midea_ac_ns.class_("BeeperOffAction", automation.Action)
 PowerOnAction = midea_ac_ns.class_("PowerOnAction", automation.Action)
 PowerOffAction = midea_ac_ns.class_("PowerOffAction", automation.Action)
 PowerToggleAction = midea_ac_ns.class_("PowerToggleAction", automation.Action)
+FreshOnAction = midea_ac_ns.class_("FreshOnAction", automation.Action)
+FreshOffAction = midea_ac_ns.class_("FreshOffAction", automation.Action)
+CleanOnAction = midea_ac_ns.class_("CleanOnAction", automation.Action)
+CleanOffAction = midea_ac_ns.class_("CleanOffAction", automation.Action)
+CleanResetAction = midea_ac_ns.class_("CleanResetAction", automation.Action)
 
 MIDEA_ACTION_BASE_SCHEMA = cv.Schema(
     {
@@ -260,6 +292,51 @@ async def power_inv_to_code(var, config, args):
     pass
 
 
+@register_action(
+    "fresh_on",
+    FreshOnAction,
+    cv.Schema({}),
+)
+async def fresh_on_to_code(var, config, args):
+    pass
+
+
+@register_action(
+    "fresh_off",
+    FreshOffAction,
+    cv.Schema({}),
+)
+async def fresh_off_to_code(var, config, args):
+    pass
+
+
+@register_action(
+    "clean_on",
+    CleanOnAction,
+    cv.Schema({}),
+)
+async def clean_on_to_code(var, config, args):
+    pass
+
+
+@register_action(
+    "clean_off",
+    CleanOffAction,
+    cv.Schema({}),
+)
+async def clean_off_to_code(var, config, args):
+    pass
+
+
+@register_action(
+    "clean_reset",
+    CleanResetAction,
+    cv.Schema({}),
+)
+async def clean_reset_to_code(var, config, args):
+    pass
+
+
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "midea", baud_rate=9600, require_rx=True, require_tx=True
 )
@@ -278,6 +355,8 @@ async def to_code(config):
         cg.add(var.set_transmitter(transmitter_))
     cg.add(var.set_beeper_feedback(config[CONF_BEEPER]))
     cg.add(var.set_autoconf(config[CONF_AUTOCONF]))
+    cg.add(var.set_clean_restore(config[CONF_CLEAN_RESTORE]))
+    cg.add(var.set_clean_duration(config[CONF_CLEAN_DURATION].total_milliseconds))
     if CONF_SUPPORTED_MODES in config:
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:
@@ -297,6 +376,21 @@ async def to_code(config):
     if CONF_HUMIDITY_SETPOINT in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY_SETPOINT])
         cg.add(var.set_humidity_setpoint_sensor(sens))
+    if CONF_FRESH_STATE in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_FRESH_STATE])
+        cg.add(var.set_fresh_state_binary_sensor(sens))
+    if CONF_CLEAN_RUNNING in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_CLEAN_RUNNING])
+        cg.add(var.set_clean_running_binary_sensor(sens))
+    if CONF_CLEAN_STATE in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_CLEAN_STATE])
+        cg.add(var.set_clean_state_text_sensor(sens))
+    if CONF_CLEAN_REMAINING in config:
+        sens = await sensor.new_sensor(config[CONF_CLEAN_REMAINING])
+        cg.add(var.set_clean_remaining_sensor(sens))
+    if CONF_LAST_CONTROL_SOURCE in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_LAST_CONTROL_SOURCE])
+        cg.add(var.set_last_control_source_text_sensor(sens))
     # MideaUART library requires WiFi (WiFi auto-enables Network via dependency mapping)
     if CORE.is_esp32:
         cg.add_library("WiFi", None)

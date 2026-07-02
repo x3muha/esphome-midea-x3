@@ -78,8 +78,38 @@ class IrTransmitter {
     remote_base::MideaProtocol().encode(transmit.get_data(), data);
     transmit.perform();
   }
+  void transmit_demodulated(const IrData &data) {
+    auto transmit = this->transmitter_->transmit();
+    auto *dst = transmit.get_data();
+    dst->reserve(2 + 48 * 2 + 2 + 2 + 48 * 2 + 1);
+    this->encode_demodulated_(dst, data, false);
+    dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
+    this->encode_demodulated_(dst, data, true);
+    dst->mark(FOOTER_MARK_US);
+    transmit.perform();
+  }
 
  protected:
+  void encode_demodulated_(remote_base::RemoteTransmitData *dst, const IrData &data, bool inverted) {
+    dst->item(HEADER_MARK_US, HEADER_SPACE_US);
+    for (uint8_t idx = 0; idx < data.size(); idx++) {
+      for (uint8_t mask = 1 << 7; mask; mask >>= 1) {
+        bool one = (data[idx] & mask) != 0;
+        if (inverted)
+          one = !one;
+        dst->item(BIT_MARK_US, one ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+      }
+    }
+  }
+
+  inline static constexpr int32_t TICK_US = 560;
+  inline static constexpr int32_t HEADER_MARK_US = 8 * TICK_US;
+  inline static constexpr int32_t HEADER_SPACE_US = 8 * TICK_US;
+  inline static constexpr int32_t BIT_MARK_US = 1 * TICK_US;
+  inline static constexpr int32_t BIT_ONE_SPACE_US = 3 * TICK_US;
+  inline static constexpr int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
+  inline static constexpr int32_t FOOTER_MARK_US = 1 * TICK_US;
+  inline static constexpr int32_t FOOTER_SPACE_US = 10 * TICK_US;
   RemoteTransmitterBase *transmitter_{nullptr};
 };
 

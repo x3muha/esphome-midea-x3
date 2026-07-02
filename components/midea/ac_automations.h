@@ -61,6 +61,31 @@ template<typename... Ts> class PowerToggleAction : public MideaActionBase<Ts...>
   void play(const Ts &...x) override { this->parent_->do_power_toggle(); }
 };
 
+template<typename... Ts> class FreshOnAction : public MideaActionBase<Ts...> {
+ public:
+  void play(const Ts &...x) override { this->parent_->do_fresh_on(); }
+};
+
+template<typename... Ts> class FreshOffAction : public MideaActionBase<Ts...> {
+ public:
+  void play(const Ts &...x) override { this->parent_->do_fresh_off(); }
+};
+
+template<typename... Ts> class CleanOnAction : public MideaActionBase<Ts...> {
+ public:
+  void play(const Ts &...x) override { this->parent_->do_clean_on(); }
+};
+
+template<typename... Ts> class CleanOffAction : public MideaActionBase<Ts...> {
+ public:
+  void play(const Ts &...x) override { this->parent_->do_clean_off(); }
+};
+
+template<typename... Ts> class CleanResetAction : public MideaActionBase<Ts...> {
+ public:
+  void play(const Ts &...x) override { this->parent_->do_clean_reset(); }
+};
+
 }  // namespace esphome::midea::ac
 
 #endif  // USE_ARDUINO

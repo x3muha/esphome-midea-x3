@@ -56,3 +56,51 @@ Planned extensions:
 - model Clean as an estimated ESP-side state when no reliable device feedback exists
 - add Display on/off state handling where possible
 - provide API-friendly entities for EDOMI integration
+
+## X3 Fresh/Clean Options
+
+This fork adds demodulated TSOP-line Midea actions for Fresh and Clean. These
+actions are meant for hardware where the ESP output is connected to the indoor
+unit TSOP output line, not to an IR LED.
+
+```yaml
+climate:
+  - platform: midea
+    id: midea_ac
+    name: "Klimaanlage"
+    uart_id: ac_uart
+    transmitter_id: ir_tx
+    autoconf: true
+    clean_restore: true
+    clean_duration: 120min
+    fresh_state:
+      name: "Midea Fresh"
+    clean_running:
+      name: "Midea Clean Running"
+    clean_state:
+      name: "Midea Clean State"
+    clean_remaining:
+      name: "Midea Clean Remaining"
+    last_control_source:
+      name: "Midea Last Control Source"
+```
+
+Available actions:
+
+```yaml
+midea_ac.fresh_on:
+  id: midea_ac
+midea_ac.fresh_off:
+  id: midea_ac
+midea_ac.clean_on:
+  id: midea_ac
+midea_ac.clean_off:
+  id: midea_ac
+midea_ac.clean_reset:
+  id: midea_ac
+```
+
+`clean_restore: true` stores the current climate mode, target temperature, fan
+mode, and Fresh state before starting Clean. After `clean_duration` expires, the
+component restores that climate state and re-enables Fresh if it was previously
+on.
