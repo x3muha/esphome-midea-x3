@@ -65,6 +65,7 @@ class AirConditioner : public ApplianceBase<dudanov::midea::ac::AirConditioner>,
   void set_custom_fan_modes(std::initializer_list<const char *> modes) { this->set_supported_custom_fan_modes(modes); }
 
  protected:
+  void on_rx_frame(const std::vector<uint8_t> &frame) override;
   void control(const ClimateCall &call) override;
   ClimateTraits traits() override;
   ClimateModeMask supported_modes_{};

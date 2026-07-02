@@ -36,6 +36,18 @@ void AirConditioner::loop() {
   this->handle_clean_timer_();
 }
 
+void AirConditioner::on_rx_frame(const std::vector<uint8_t> &frame) {
+  if (frame.size() <= 19 || frame[0] != 0xAA || frame[10] != 0xC0)
+    return;
+
+  bool fresh = (frame[19] & 0x20) != 0;
+  bool sensor_unknown =
+      this->fresh_state_binary_sensor_ != nullptr && !this->fresh_state_binary_sensor_->has_state();
+  bool needs_publish = this->fresh_state_ != fresh || sensor_unknown;
+  if (needs_publish)
+    this->set_fresh_state_(fresh, "uart_status");
+}
+
 void AirConditioner::on_status_change() {
   // Add frost protection custom preset once when autoconf completes
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK &&

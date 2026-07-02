@@ -52,7 +52,6 @@ Planned extensions:
 - expose communication health and last error as ESPHome entities
 - expose last control source, including IR input detection
 - expose raw status/debug data for Midea UART frames
-- handle Fresh state when available from the status frame
 - model Clean as an estimated ESP-side state when no reliable device feedback exists
 - add Display on/off state handling where possible
 - provide API-friendly entities for EDOMI integration
@@ -74,9 +73,13 @@ climate:
     clean_restore: true
     clean_duration: 120min
     fresh_state:
-      name: "Midea Fresh"
+      id: midea_fresh_state
+      name: "Midea Fresh Status"
+      internal: true
     clean_running:
+      id: midea_clean_running
       name: "Midea Clean Running"
+      internal: true
     clean_state:
       name: "Midea Clean State"
     clean_remaining:
@@ -104,3 +107,39 @@ midea_ac.clean_reset:
 mode, and Fresh state before starting Clean. After `clean_duration` expires, the
 component restores that climate state and re-enables Fresh if it was previously
 on.
+
+Fresh state is synchronized from UART `C0` status frames. On the tested X3 unit,
+the Fresh bit is `frame[19] & 0x20`, corresponding to status payload byte 9 when
+counting from `C0`.
+
+For Web UI, ESPHome API, KNX, or EDOMI control, keep Fresh and Clean as template
+switches in YAML and optionally expose runtime controls for the estimated Clean
+logic:
+
+```yaml
+number:
+  - platform: template
+    name: "Midea Clean Dauer"
+    id: midea_clean_duration_minutes
+    unit_of_measurement: min
+    min_value: 15
+    max_value: 240
+    step: 5
+    optimistic: true
+    restore_value: true
+    initial_value: 120
+    set_action:
+      - lambda: |-
+          id(midea_ac).set_clean_duration(static_cast<uint32_t>(x * 60000.0f));
+
+switch:
+  - platform: template
+    name: "Midea Clean Restore"
+    id: midea_clean_restore_switch
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_ON
+    turn_on_action:
+      - lambda: id(midea_ac).set_clean_restore(true);
+    turn_off_action:
+      - lambda: id(midea_ac).set_clean_restore(false);
+```

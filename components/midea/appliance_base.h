@@ -15,12 +15,18 @@
 #include "esphome/components/climate/climate.h"
 #include "ir_transmitter.h"
 
+#include <functional>
+#include <vector>
+
 namespace esphome::midea {
 
 /* Stream from UART component */
 class UARTStream : public Stream {
  public:
   void set_uart(uart::UARTComponent *uart) { this->uart_ = uart; }
+  void set_rx_frame_callback(std::function<void(const std::vector<uint8_t> &)> callback) {
+    this->rx_frame_callback_ = callback;
+  }
 
   /* Stream interface implementation */
 
@@ -29,6 +35,7 @@ class UARTStream : public Stream {
     uint8_t data;
     if (!this->uart_->read_byte(&data))
       return -1;
+    this->capture_rx_byte_(data);
     return data;
   }
   int peek() override {
@@ -49,6 +56,36 @@ class UARTStream : public Stream {
 
  protected:
   uart::UARTComponent *uart_;
+  std::function<void(const std::vector<uint8_t> &)> rx_frame_callback_;
+  std::vector<uint8_t> rx_frame_;
+  size_t rx_expected_size_{0};
+
+  void capture_rx_byte_(uint8_t data) {
+    if (this->rx_frame_.empty()) {
+      if (data != 0xAA)
+        return;
+      this->rx_frame_.push_back(data);
+      this->rx_expected_size_ = 0;
+      return;
+    }
+
+    this->rx_frame_.push_back(data);
+    if (this->rx_frame_.size() == 2) {
+      this->rx_expected_size_ = static_cast<size_t>(data) + 1;
+      if (this->rx_expected_size_ < 2 || this->rx_expected_size_ > 256) {
+        this->rx_frame_.clear();
+        this->rx_expected_size_ = 0;
+        return;
+      }
+    }
+
+    if (this->rx_expected_size_ == 0 || this->rx_frame_.size() < this->rx_expected_size_)
+      return;
+    if (this->rx_frame_callback_ != nullptr)
+      this->rx_frame_callback_(this->rx_frame_);
+    this->rx_frame_.clear();
+    this->rx_expected_size_ = 0;
+  }
 };
 
 template<typename T> class ApplianceBase : public Component {
@@ -58,6 +95,8 @@ template<typename T> class ApplianceBase : public Component {
  public:
   ApplianceBase() {
     this->base_.setStream(&this->stream_);
+    this->stream_.set_rx_frame_callback(
+        [this](const std::vector<uint8_t> &frame) { this->on_rx_frame(frame); });
     this->base_.addOnStateCallback([this]() { this->on_status_change(); });
     dudanov::midea::ApplianceBase::setLogger(
         [](int level, const char *tag, int line, const String &format, va_list args) {
@@ -90,6 +129,7 @@ template<typename T> class ApplianceBase : public Component {
   virtual void on_status_change() = 0;
 
  protected:
+  virtual void on_rx_frame(const std::vector<uint8_t> &frame) {}
   T base_;
   UARTStream stream_;
 #ifdef USE_REMOTE_TRANSMITTER
