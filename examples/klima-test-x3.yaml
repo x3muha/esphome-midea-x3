@@ -78,6 +78,7 @@ remote_transmitter:
   id: ir_tx
   pin: GPIO13
   carrier_duty_percent: 100%
+  non_blocking: true
   rmt_symbols: 192
 
 climate:
