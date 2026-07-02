@@ -190,6 +190,8 @@ switch:
     name: "Midea Fresh"
     id: midea_fresh_switch
     icon: mdi:air-filter
+    lambda: |-
+      return {};
     turn_on_action:
       - midea_ac.fresh_on:
           id: midea_ac
@@ -201,6 +203,8 @@ switch:
     name: "Midea Clean"
     id: midea_clean_switch
     icon: mdi:spray-bottle
+    lambda: |-
+      return {};
     turn_on_action:
       - midea_ac.clean_on:
           id: midea_ac
