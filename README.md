@@ -124,6 +124,31 @@ For normal operation keep `remote_receiver.dump` disabled. With `dump: raw`, the
 receiver logs the injected Fresh/Clean timings too, which can produce long-loop
 warnings such as `remote_receiver took a long time`.
 
+When the device is controlled through `web_server` REST endpoints only, set
+`api.reboot_timeout: 0s`. Otherwise ESPHome's native API can reboot the ESP with
+`No client connected to API. Rebooting...` if no Home Assistant, dashboard, or
+`esphome logs` client is connected. EDOMI Web API polling does not count as a
+native API client. The examples keep the native API encrypted, protect OTA, and
+protect the Web API through secrets:
+
+```yaml
+api:
+  encryption:
+    key: !secret api_encryption_key
+  reboot_timeout: 0s
+
+ota:
+  - platform: esphome
+    password: !secret ota_password
+
+web_server:
+  port: 80
+  auth:
+    username: !secret web_user
+    password: !secret web_password
+  ota: false
+```
+
 For Web UI, ESPHome API, KNX, or EDOMI control, keep Fresh and Clean as template
 switches in YAML and optionally expose runtime controls for the estimated Clean
 logic:

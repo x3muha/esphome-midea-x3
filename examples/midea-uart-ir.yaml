@@ -43,12 +43,23 @@ logger:
   level: DEBUG
 
 api:
+  # EDOMI uses the web_server REST endpoints, not the ESPHome native API.
+  # Keep the native API available for diagnostics without rebooting when no
+  # Home Assistant/dashboard client is connected.
+  encryption:
+    key: !secret api_encryption_key
+  reboot_timeout: 0s
 
 ota:
   - platform: esphome
+    password: !secret ota_password
 
 web_server:
   port: 80
+  auth:
+    username: !secret web_user
+    password: !secret web_password
+  ota: false
 
 uart:
   id: ac_uart
